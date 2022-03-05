@@ -72,6 +72,14 @@ def get_origin_value(flat_key, original_dict):
     return x
 
 
+def check_entries(key, origin_dict):
+    tokens = key.split('.')
+    for token in tokens:
+        if not isinstance(token, list) or not isinstance(token, dict):
+            return False
+    return True
+
+
 def add_config(yml_filename, extra_config):
     original_yml = load_yml(filename=yml_filename)
     yml_flat = flatten(original_yml)
@@ -92,8 +100,11 @@ def add_config(yml_filename, extra_config):
                 added_key = get_key(1, tokens)
                 yml_flat[old_key] = origin_value
                 yml_flat[added_key] = value
-        else:
+        elif check_entries(config_key, original_yml):
             yml_flat[config_key] = value
+        else:
+            print(f'File Contains Key For {config_key}')
+            continue
 
     print(yml_flat)
     dump_yml(f"new-{yml_filename}", unflatten(yml_flat))
@@ -105,7 +116,8 @@ def main():
     extra_config = {
         'metadata.labels.app': 'roei2',
         'metadata.labels.prod': True,
-        'spec.predictors.componentSpecs.spec.containers.0.image': 'roei_Test'
+        'spec.predictors.componentSpecs.spec.containers.0.image': 'roei_Test',
+        'apiVersion.tests': 'testi_Test'
     }
 
     add_config(yml_filename, extra_config)
