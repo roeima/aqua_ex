@@ -72,7 +72,7 @@ def get_origin_value(flat_key, original_dict):
     return x
 
 
-def check_entries(key, origin_dict):
+def check_entries(key):
     tokens = key.split('.')
     for token in tokens:
         if not isinstance(token, list) or not isinstance(token, dict):
@@ -100,7 +100,7 @@ def add_config(yml_filename, extra_config):
                 added_key = get_key(1, tokens)
                 yml_flat[old_key] = origin_value
                 yml_flat[added_key] = value
-        elif check_entries(config_key, original_yml):
+        elif check_entries(config_key):
             yml_flat[config_key] = value
         else:
             print(f'File Contains Key For {config_key}')
@@ -109,18 +109,25 @@ def add_config(yml_filename, extra_config):
     print(yml_flat)
     dump_yml(f"new-{yml_filename}", unflatten(yml_flat))
 
-
+from yml_editor import YamlEditor
 def main():
-    yml_filename = 'file.yml'
-
-    extra_config = {
-        'metadata.labels.app': 'roei2',
-        'metadata.labels.prod': True,
-        'spec.predictors.componentSpecs.spec.containers.0.image': 'roei_Test',
-        'apiVersion.tests': 'testi_Test'
-    }
-
-    add_config(yml_filename, extra_config)
+    # yml_filename = 'file.yml'
+    #
+    # extra_config = {
+    #     'metadata.labels.app': 'roei2',
+    #     'metadata.labels.prod': True,
+    #     'spec.predictors.componentSpecs.spec.containers.0.image': 'roei_Test',
+    #     'apiVersion.tests': 'testi_Test'
+    # }
+    #
+    # add_config(yml_filename, extra_config)
+    editor = YamlEditor('file.yml')
+    editor.add_config('metadata.labels.prod', True)
+    editor.add_config('spec.annotations.deployment_version', 'v2')
+    print(editor.check_entries('metadata.labels.app'))
+    editor.add_config('metadata.labels.app', ['roei2', 'roei3'])
+    editor.save('new-file.yml')
+    editor.close()
 
 
 if __name__ == '__main__':
