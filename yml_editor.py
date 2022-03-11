@@ -47,10 +47,12 @@ class YamlEditor:
                 logger.error(f'Error while loading yaml file (file_path={self.file_path} -- {e}')
                 return
 
-        self.yml_dict = self.__merge(copy.deepcopy(self.yml_dict), extra_config)
+        try:
+            self.yml_dict = self.__merge(copy.deepcopy(self.yml_dict), extra_config)
+        except Exception as e:
+            logger.error(f'Error while merging, {e}')
 
     def __merge(self, base_dict, added_dict):
-        key = None
         try:
             if base_dict is None or isinstance(base_dict, (six.string_types, float, six.integer_types)):
                 value = list()
@@ -77,10 +79,10 @@ class YamlEditor:
                             base_dict[key] = self.__merge(base_dict[key], added_dict[key])
                         else:
                             base_dict[key] = added_dict[key]
-                    else:
-                        raise YamlEditorException(f'Cannot merge non-dict {added_dict} into dict {base_dict}')
                 else:
-                    raise YamlEditorException(f'Not implemented {added_dict} into {base_dict}')
+                    raise YamlEditorException(f'Cannot merge non-dict {added_dict} into dict {base_dict}')
+            else:
+                raise YamlEditorException(f'Not implemented {added_dict} into {base_dict}')
         except Exception as e:
             raise e
 
