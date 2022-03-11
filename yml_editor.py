@@ -1,134 +1,94 @@
+from typing import Dict, Optional
+import logging
+
+import six
 import yaml
-import re
+from yaml import YAMLError
+import copy
 
 
-def flatten(dictionary, parent_key=False, separator='.'):
-    items = []
-    for key, value in dictionary.items():
-        new_key = str(parent_key) + separator + key if parent_key else key
-        if isinstance(value, dict):
-            items.extend(flatten(value, new_key, separator).items())
-        elif isinstance(value, list):
-            for k, v in enumerate(value):
-                items.extend(flatten({str(k): v}, new_key).items())
-        else:
-            items.append((new_key, value))
-    return dict(items)
+FORMAT = '%(asctime)s -- %(levelname)s -- %(message)s '
+logging.basicConfig(format=FORMAT)
+logger: logging.Logger = logging.getLogger(__name__)
 
 
-def unflatten(flat_dict):
-    sorted_flat_dict = dict(sorted(flat_dict.items()))
-    result_dict = {}
-    for key, value in sorted_flat_dict.items():
-        s = result_dict
-        tokens = re.findall(r'\w+', key)
-        for count, (index, next_token) in enumerate(zip(tokens, tokens[1:] + [value]), 1):
-            value = next_token if count == len(tokens) else [] if next_token.isdigit() else {}
-            if isinstance(s, list):
-                index = int(index)
-                while index >= len(s):
-                    s.append(value)
-            elif index not in s:
-                s[index] = value
-            s = s[index]
-    return result_dict
+class YamlEditorException(Exception):
+    pass
 
 
-# TODO adding context manager
 class YamlEditor:
+
     def __init__(self, file_path):
         self.file_path = file_path
-        self.file = self.__load_file()
-        self.file_dict = None
+        self.yml_dict: Optional[Dict] = None
 
     def __load_file(self):
-        return open(self.file_path, 'r+')
+        try:
+            return open(self.file_path, 'r+')
+        except FileNotFoundError as e:
+            logger.error(f'{self.file_path} File Not Found')
+            raise e
 
-    def __load_yml(self):
-        self.file_dict = yaml.safe_load(self.file)
+    def __load_dict(self):
+        try:
+            file = self.__load_file()
+            self.yml_dict = yaml.safe_load(file)
+        except FileNotFoundError as e:
+            raise e
+        except YAMLError as e:
+            logger.error(f'Yaml Error - {e}')
+            raise e
 
-    def add_config(self, config_key, value):
-        if not self.file_dict:
-            self.__load_yml()
-        yml_flat = flatten(self.file_dict)
+    def add_config(self, extra_config: Dict):
+        if not self.yml_dict:
+            try:
+                self.__load_dict()
+            except Exception as e:
+                logger.error(f'Error while loading yaml file (file_path={self.file_path} -- {e}')
+                return
 
-        if self.is_key_exists(config_key, yml_flat.keys()):
-            origin_value = self.get_origin_value(config_key)
-            start_config_pos = 0
+        self.yml_dict = self.__merge(copy.deepcopy(self.yml_dict), extra_config)
 
-            if isinstance(origin_value, list):
-                start_config_pos = len(origin_value)
-            else:
-                start_config_pos = 1
-                del yml_flat[config_key]
-                new_key = self.get_key(0, config_key)
-                yml_flat[new_key] = origin_value
+    def __merge(self, base_dict, added_dict):
+        key = None
+        try:
+            if base_dict is None or isinstance(base_dict, (six.string_types, float, six.integer_types)):
+                value = list()
+                value.append(base_dict)
+                if isinstance(added_dict, list):
+                    value.extend(added_dict)
+                else:
+                    value.append(added_dict)
 
-            if not isinstance(value, list):
-                added_key = self.get_key(start_config_pos, config_key)
-                yml_flat[added_key] = value
-            else:
-                for idx, val in enumerate(value, start_config_pos):
-                    added_key = self.get_key(idx, config_key)
-                    yml_flat[added_key] = val
-        elif self.check_entries(config_key):
-            yml_flat[config_key] = value
-        else:
-            # print(config_key, self.check_entries(config_key))
-            raise Exception(f'File contains key for {config_key}')
+                base_dict = value
 
-        self.file_dict = unflatten(flat_dict=yml_flat)
+            elif isinstance(base_dict, list):
 
-    def get_origin_value(self, flat_key):
-        x = self.file_dict
-        tokens = flat_key.split('.')
-        for token in tokens:
-            if token.isdigit():
-                x = x[int(token)]
-            else:
-                x = x[token]
-        return x
+                if isinstance(added_dict, list):
+                    base_dict.extend(added_dict)
+                else:
+                    base_dict.append(added_dict)
 
-    @staticmethod
-    def is_key_exists(key, yml_keys):
-        if key in yml_keys:
-            return True
-        for k in yml_keys:
-            if key in k:
-                return True
-        return False
+            elif isinstance(base_dict, dict):
 
-    @staticmethod
-    def get_key(config_pos, flat_key):
-        tokens = flat_key.split('.')
-        tokens.append(str(config_pos))
-        key = '.'.join(tokens)
-        return key
+                if isinstance(added_dict, dict):
+                    for key in added_dict:
+                        if key in base_dict:
+                            base_dict[key] = self.__merge(base_dict[key], added_dict[key])
+                        else:
+                            base_dict[key] = added_dict[key]
+                    else:
+                        raise YamlEditorException(f'Cannot merge non-dict {added_dict} into dict {base_dict}')
+                else:
+                    raise YamlEditorException(f'Not implemented {added_dict} into {base_dict}')
+        except Exception as e:
+            raise e
 
-    def check_entries(self, flat_key):
-        tokens = flat_key.split('.')
-        x = self.file_dict
-        for token in tokens:
-            if not x:
-                break
-            if not (isinstance(x, list) or isinstance(x, dict)):
-                return False
-
-            if token.isdigit():
-                token = int(token)
-                x = x[token]
-            else:
-                x = x.get(token)
-        return True
+        return base_dict
 
     def save(self, filename=None):
-        if not self.file_dict:
-            self.__load_yml()
         if not filename:
-            yaml.dump(self.file_dict, self.file)
-        else:
-            with open(filename, 'w') as fp:
-                yaml.dump(self.file_dict, fp)
+            filename = self.file_path
+        with open(filename, 'w') as fp:
+            yaml.dump(self.yml_dict, fp)
 
-    def close(self):
-        self.file.close()
