@@ -9,14 +9,14 @@ def get_dir_requirements(root_dir):
     for file in dir_req_files:
         with open(f"{root_dir}/{file}", 'r') as f:
             lines = f.readlines()
-            pkgs_in_file = [str(requirment)
-                            for requirment
-                            in pkg_resources.parse_requirements(lines)]
 
-            files = [file_name for file_name in [line.strip() for line in lines]
-                     if 'requirements' in file_name and file_name in dir_req_files]
+        files = [file_name for file_name in [line.strip().split()[1] for line in lines if line.startswith('-r')]
+                 if file_name in dir_req_files]
 
-        pkgs_in_file = [pkg for pkg in pkgs_in_file if pkg not in files]
+        pkgs_in_file = [str(requirement)
+                        for requirement
+                        in pkg_resources.parse_requirements([line for line in lines if not line.startswith('-r')])]
+
         requirements[file] = {
             'pkgs': pkgs_in_file,
             'files': files
