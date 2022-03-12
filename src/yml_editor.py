@@ -12,6 +12,14 @@ logging.basicConfig(format=FORMAT)
 logger: logging.Logger = logging.getLogger(__name__)
 
 
+def nested_dict_values(d):
+    for v in d.values():
+        if isinstance(v, dict):
+            yield from nested_dict_values(v)
+        else:
+            yield v
+
+
 class YamlEditorException(Exception):
     pass
 
@@ -40,17 +48,20 @@ class YamlEditor:
             raise e
 
     def add_config(self, extra_config: Dict):
+        if not self.check_extra_config(extra_config):
+            raise YamlEditorException('extra config are not using yaml datatypes')
         if not self.yml_dict:
             try:
                 self.__load_dict()
             except Exception as e:
                 logger.error(f'Error while loading yaml file (file_path={self.file_path}) -- {e}')
-                return
+                raise e
 
         try:
             self.yml_dict = self.__merge(copy.deepcopy(self.yml_dict), extra_config)
         except Exception as e:
             logger.error(f'Error while merging, {e}')
+            raise e
 
     def __merge(self, base_dict, added_dict):
         try:
@@ -88,7 +99,17 @@ class YamlEditor:
 
         return base_dict
 
+    @staticmethod
+    def check_extra_config(extra_config):
+        # checks for not primitive type in extra config
+        for v in nested_dict_values(extra_config):
+            if not (v is None or isinstance(v, (six.string_types, float, six.integer_types, list))):
+                return False
+        return True
+
     def save(self, filename=None):
+        if self.yml_dict is None:
+            return
         if not filename:
             filename = self.file_path
         with open(filename, 'w') as fp:
