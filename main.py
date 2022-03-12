@@ -1,5 +1,5 @@
-from requirements_extractor import extract_requirements
-from yml_editor import YamlEditor
+from src.requirements_extractor import extract_requirements
+from src.yml_editor import YamlEditor
 
 
 def edit_yml():

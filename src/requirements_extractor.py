@@ -50,11 +50,3 @@ def extract_requirements(main_file):
 
     return ','.join(list(set(pkgs)))
 
-
-def main():
-    main_file = r'./req_files/requirements.txt'
-    print(extract_requirements(main_file))
-
-
-if __name__ == '__main__':
-    main()

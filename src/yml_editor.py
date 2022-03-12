@@ -44,7 +44,7 @@ class YamlEditor:
             try:
                 self.__load_dict()
             except Exception as e:
-                logger.error(f'Error while loading yaml file (file_path={self.file_path} -- {e}')
+                logger.error(f'Error while loading yaml file (file_path={self.file_path}) -- {e}')
                 return
 
         try:
