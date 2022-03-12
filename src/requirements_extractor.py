@@ -48,5 +48,5 @@ def extract_requirements(main_file):
     for connected_file in list(connected_files):
         pkgs.extend(requirements[connected_file]['pkgs'])
 
-    return ','.join(list(set(pkgs)))
+    return ','.join(sorted(list(set(pkgs))))
 
